@@ -38,6 +38,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
 
   // Form states for edit mode
   const [clientId, setClientId] = useState(order.clientId);
+  const [venueId, setVenueId] = useState(order.venueId || '');
   const [customDeliveryAddress, setCustomDeliveryAddress] = useState(order.customDeliveryAddress || '');
   const [serviceTypeId, setServiceTypeId] = useState(order.serviceTypeId);
   const [ingressTime, setIngressTime] = useState(() => {
@@ -145,7 +146,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
     }
 
     // Payload Validations
-    if (!customDeliveryAddress || customDeliveryAddress.trim() === '') {
+    if (!venueId && (!customDeliveryAddress || customDeliveryAddress.trim() === '')) {
       showToast('Please specify a delivery address.', 'error');
       return;
     }
@@ -174,8 +175,8 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientId,
-          venueId: null,
-          customDeliveryAddress,
+          venueId: venueId ? venueId : null,
+          customDeliveryAddress: venueId ? null : customDeliveryAddress,
           serviceTypeId,
           ingressTime,
           egressTime,
@@ -300,7 +301,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
         /* EDITABLE VIEW (FORM) */
         <form onSubmit={handleSave} className="space-y-6">
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-6">
-            <h3 className="text-lg font-bold text-slate-955 dark:text-white border-b border-slate-250 dark:border-slate-850 pb-2">
+            <h3 className="text-lg font-bold text-slate-950 dark:text-white border-b border-slate-250 dark:border-slate-850 pb-2">
               Update Ordering Data
             </h3>
 
@@ -311,7 +312,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
                   value={clientId}
                   onChange={(e) => setClientId(e.target.value)}
                   required
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-955 px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {clients.map((c) => {
                     const name = c.clientType === 'ORGANIZATION' ? c.organizationName : `${c.firstName} ${c.lastName}`;
@@ -326,7 +327,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
                   value={serviceTypeId}
                   onChange={(e) => setServiceTypeId(e.target.value)}
                   required
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-955 px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {serviceTypes.map((st) => (
                     <option key={st.id} value={st.id}>{st.serviceName}</option>
@@ -336,14 +337,40 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Delivery Address</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Event Venue / Location</label>
+              <select
+                value={venueId}
+                onChange={(e) => {
+                  const selectedVenueId = e.target.value;
+                  setVenueId(selectedVenueId);
+                  if (selectedVenueId) {
+                    const v = venues.find(venue => venue.id.toString() === selectedVenueId);
+                    setCustomDeliveryAddress(v ? v.physicalAddress : '');
+                  } else {
+                    setCustomDeliveryAddress('');
+                  }
+                }}
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 mb-4 font-sans"
+              >
+                <option value="">-- Custom Delivery Address --</option>
+                {venues.map((v) => (
+                  <option key={v.id} value={v.id}>{v.venueName} (Cap: {v.capacity})</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                {venueId ? "Venue Physical Address" : "Delivery Address"}
+              </label>
               <input
                 type="text"
                 value={customDeliveryAddress}
                 onChange={(e) => setCustomDeliveryAddress(e.target.value)}
-                required
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-955 px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter delivery address"
+                required={!venueId}
+                disabled={!!venueId}
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 dark:disabled:bg-slate-900 dark:disabled:text-slate-400"
+                placeholder={venueId ? "" : "Enter delivery address"}
               />
             </div>
 
@@ -355,7 +382,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
                   value={ingressTime}
                   onChange={(e) => setIngressTime(e.target.value)}
                   required
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-955 px-4 py-2.5 text-sm text-slate-900 dark:text-white font-mono outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-2.5 text-sm text-slate-900 dark:text-white font-mono outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -365,7 +392,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
                   value={egressTime}
                   onChange={(e) => setEgressTime(e.target.value)}
                   required
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-955 px-4 py-2.5 text-sm text-slate-900 dark:text-white font-mono outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-2.5 text-sm text-slate-900 dark:text-white font-mono outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -376,7 +403,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
                 rows={3}
                 value={specialInstructions}
                 onChange={(e) => setSpecialInstructions(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-955 px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none resize-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none resize-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter special requests, food restrictions, server guidelines..."
               />
             </div>
@@ -385,7 +412,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
           {/* Schedule wizard list */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-6">
             <div className="flex items-center justify-between border-b border-slate-250 dark:border-slate-850 pb-2">
-              <h3 className="text-lg font-bold text-slate-955 dark:text-white">
+              <h3 className="text-lg font-bold text-slate-950 dark:text-white">
                 Event Schedule & Catering Items
               </h3>
               <button
@@ -399,7 +426,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
 
             <div className="space-y-6">
               {orderDays.map((day, dIdx) => (
-                <div key={day.tempId} className="bg-slate-50 dark:bg-slate-955/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 relative space-y-4">
+                <div key={day.tempId} className="bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 relative space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
                     <div className="flex items-center space-x-3">
                       <span className="font-bold text-sm text-slate-900 dark:text-white">Day {dIdx + 1}:</span>
@@ -408,7 +435,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
                         value={day.eventDate}
                         onChange={(e) => handleUpdateDayDate(dIdx, e.target.value)}
                         required
-                        className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-955 px-3 py-1.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                        className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-1.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
                     <div className="flex items-center space-x-2">
@@ -443,7 +470,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
                               value={meal.menuId}
                               onChange={(e) => handleUpdateMeal(dIdx, mIdx, { menuId: e.target.value })}
                               required
-                              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-955 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
                             >
                               <option value="">-- Select Menu Catalog --</option>
                               {menus.map((m) => (
@@ -459,7 +486,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
                               onChange={(e) => handleUpdateMeal(dIdx, mIdx, { pax: parseInt(e.target.value) || 0 })}
                               required
                               min={1}
-                              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-955 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
                             />
                             <span className="text-xs text-slate-500">Pax</span>
                           </div>
@@ -548,9 +575,14 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
                 </div>
 
                 <div className="sm:col-span-2">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Delivery Address</span>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                    {order.venue ? 'Event Venue' : 'Delivery Address'}
+                  </span>
                   <span className="font-semibold text-slate-900 dark:text-white">
-                    {order.customDeliveryAddress}
+                    {order.venue 
+                      ? `${order.venue.venueName} (${order.venue.physicalAddress})`
+                      : order.customDeliveryAddress
+                    }
                   </span>
                 </div>
 
@@ -585,7 +617,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
 
               <div className="space-y-6">
                 {order.orderDays.map((day: any, idx: number) => (
-                  <div key={day.id} className="bg-slate-50 dark:bg-slate-955/30 rounded-xl p-4 border border-slate-200 dark:border-slate-850 space-y-3">
+                  <div key={day.id} className="bg-slate-50 dark:bg-slate-950/30 rounded-xl p-4 border border-slate-200 dark:border-slate-850 space-y-3">
                     <p className="text-sm font-bold text-slate-900 dark:text-white flex items-center">
                       <Calendar className="w-4 h-4 mr-1.5 text-blue-600 dark:text-sky-400" />
                       Day {idx + 1}: {new Date(day.eventDate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}

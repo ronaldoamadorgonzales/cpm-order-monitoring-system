@@ -37,6 +37,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
   useEffect(() => {
     if (editOrder) {
       setWizardClientId(editOrder.clientId);
+      setWizardVenueId(editOrder.venueId || '');
       setWizardCustomAddress(editOrder.customDeliveryAddress || '');
       setWizardServiceTypeId(editOrder.serviceTypeId);
 
@@ -66,6 +67,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
     } else {
       // Defaults for create
       setWizardClientId('');
+      setWizardVenueId('');
       setWizardCustomAddress('');
       setWizardServiceTypeId('');
       setWizardIngressTime('08:00');
@@ -151,7 +153,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
       return;
     }
 
-    if (!wizardCustomAddress || wizardCustomAddress.trim() === '') {
+    if (!wizardVenueId && (!wizardCustomAddress || wizardCustomAddress.trim() === '')) {
       setWizardError('Please specify a delivery address.');
       return;
     }
@@ -175,8 +177,8 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
 
     const payload = {
       clientId: wizardClientId,
-      venueId: null,
-      customDeliveryAddress: wizardCustomAddress,
+      venueId: wizardVenueId ? wizardVenueId : null,
+      customDeliveryAddress: wizardVenueId ? null : wizardCustomAddress,
       serviceTypeId: wizardServiceTypeId,
       ingressTime: wizardIngressTime,
       egressTime: wizardEgressTime,
@@ -297,15 +299,42 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
               </div>
 
               <div>
-                <label htmlFor="wizardAddress" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Delivery Address</label>
+                <label htmlFor="wizardVenueSelect" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Event Venue / Location</label>
+                <select
+                  id="wizardVenueSelect"
+                  value={wizardVenueId}
+                  onChange={(e) => {
+                    const selectedVenueId = e.target.value;
+                    setWizardVenueId(selectedVenueId);
+                    if (selectedVenueId) {
+                      const venue = catalogs?.venues.find(v => v.id.toString() === selectedVenueId);
+                      setWizardCustomAddress(venue ? venue.physicalAddress : '');
+                    } else {
+                      setWizardCustomAddress('');
+                    }
+                  }}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none font-sans"
+                >
+                  <option value="">-- Custom Delivery Address --</option>
+                  {catalogs?.venues.map((v) => (
+                    <option key={v.id} value={v.id}>{v.venueName} (Cap: {v.capacity})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="wizardAddress" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  {wizardVenueId ? "Venue Physical Address" : "Delivery Address"}
+                </label>
                 <input
                   type="text"
                   id="wizardAddress"
                   value={wizardCustomAddress}
                   onChange={(e) => setWizardCustomAddress(e.target.value)}
-                  required
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none"
-                  placeholder="Enter delivery address"
+                  required={!wizardVenueId}
+                  disabled={!!wizardVenueId}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none disabled:bg-slate-100 dark:disabled:bg-slate-900 dark:disabled:text-slate-400"
+                  placeholder={wizardVenueId ? "" : "Enter delivery address"}
                 />
               </div>
 
