@@ -39,7 +39,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
   // Form states for edit mode
   const [clientId, setClientId] = useState(order.clientId);
   const [venueId, setVenueId] = useState(order.venueId || '');
-  const [customDeliveryAddress, setCustomDeliveryAddress] = useState(order.customDeliveryAddress || '');
+  const [customDeliveryAddress, setCustomDeliveryAddress] = useState(order.venue ? order.venue.physicalAddress : (order.customDeliveryAddress || ''));
   const [serviceTypeId, setServiceTypeId] = useState(order.serviceTypeId);
   const [ingressTime, setIngressTime] = useState(() => {
     const timeVal = order.ingressTime;

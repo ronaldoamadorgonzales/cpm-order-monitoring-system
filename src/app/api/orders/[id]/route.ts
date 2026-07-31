@@ -161,6 +161,12 @@ export async function PUT(
     let dbDeliveryAddress: string | null = null;
 
     if (venueId) {
+      if (!/^\d+$/.test(String(venueId))) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Invalid venue ID format.' } },
+          { status: 400 }
+        );
+      }
       const venueList = await db.select().from(schema.venues).where(eq(schema.venues.id, BigInt(venueId))).limit(1);
       if (venueList.length === 0) {
         return NextResponse.json(

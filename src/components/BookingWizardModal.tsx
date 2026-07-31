@@ -38,7 +38,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
     if (editOrder) {
       setWizardClientId(editOrder.clientId);
       setWizardVenueId(editOrder.venueId || '');
-      setWizardCustomAddress(editOrder.customDeliveryAddress || '');
+      setWizardCustomAddress(editOrder.venue ? editOrder.venue.physicalAddress : (editOrder.customDeliveryAddress || ''));
       setWizardServiceTypeId(editOrder.serviceTypeId);
 
       const formatTime = (timeVal: any) => {
