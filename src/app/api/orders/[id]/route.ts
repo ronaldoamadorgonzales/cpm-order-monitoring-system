@@ -156,11 +156,27 @@ export async function PUT(
       );
     }
 
-    if (!customDeliveryAddress || customDeliveryAddress.trim() === '') {
-      return NextResponse.json(
-        { success: false, error: { message: 'Delivery address is required.' } },
-        { status: 400 }
-      );
+    // Validate address/venue:
+    let dbVenueId: bigint | null = null;
+    let dbDeliveryAddress: string | null = null;
+
+    if (venueId) {
+      const venueList = await db.select().from(schema.venues).where(eq(schema.venues.id, BigInt(venueId))).limit(1);
+      if (venueList.length === 0) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Selected venue does not exist.' } },
+          { status: 400 }
+        );
+      }
+      dbVenueId = BigInt(venueId);
+    } else {
+      if (!customDeliveryAddress || customDeliveryAddress.trim() === '') {
+        return NextResponse.json(
+          { success: false, error: { message: 'Delivery address is required.' } },
+          { status: 400 }
+        );
+      }
+      dbDeliveryAddress = customDeliveryAddress;
     }
 
     // Recalculate Grand Total from scratch
@@ -195,8 +211,8 @@ export async function PUT(
       const updatedHeaderList = await tx.update(schema.orders)
         .set({
           clientId: BigInt(clientId),
-          venueId: null,
-          customDeliveryAddress: customDeliveryAddress,
+          venueId: dbVenueId,
+          customDeliveryAddress: dbDeliveryAddress,
           serviceTypeId: BigInt(serviceTypeId),
           ingressTime: ingressTime || null,
           egressTime: egressTime || null,

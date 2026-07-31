@@ -204,11 +204,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!customDeliveryAddress || customDeliveryAddress.trim() === '') {
-      return NextResponse.json(
-        { success: false, error: { message: 'Delivery address is required.' } },
-        { status: 400 }
-      );
+    // Validate address/venue details:
+    let dbVenueId: bigint | null = null;
+    let dbDeliveryAddress: string | null = null;
+
+    if (venueId) {
+      const venueList = await db.select().from(schema.venues).where(eq(schema.venues.id, BigInt(venueId))).limit(1);
+      if (venueList.length === 0) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Selected venue does not exist.' } },
+          { status: 400 }
+        );
+      }
+      dbVenueId = BigInt(venueId);
+    } else {
+      if (!customDeliveryAddress || customDeliveryAddress.trim() === '') {
+        return NextResponse.json(
+          { success: false, error: { message: 'Delivery address is required.' } },
+          { status: 400 }
+        );
+      }
+      dbDeliveryAddress = customDeliveryAddress;
     }
 
     // 2. Fetch dependencies
@@ -281,8 +297,8 @@ export async function POST(req: NextRequest) {
       // Create order header
       const insertedOrders = await tx.insert(schema.orders).values({
         clientId: BigInt(clientId),
-        venueId: null,
-        customDeliveryAddress: customDeliveryAddress,
+        venueId: dbVenueId,
+        customDeliveryAddress: dbDeliveryAddress,
         serviceTypeId: BigInt(serviceTypeId),
         statusId: draftStatus.id,
         ingressTime: ingressTime || null,
