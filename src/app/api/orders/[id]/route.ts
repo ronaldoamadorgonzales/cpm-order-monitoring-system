@@ -228,17 +228,13 @@ export async function PUT(
             { status: 400 }
           );
         }
-        if (!meal.itemIds || !Array.isArray(meal.itemIds) || meal.itemIds.length === 0) {
-          return NextResponse.json(
-            { success: false, error: { message: 'At least one food item must be selected.' } },
-            { status: 400 }
-          );
+        if (!meal.menuId && (!meal.customName || meal.customName.trim() === '')) {
+          return NextResponse.json({ success: false, error: { message: 'Either a menu catalog or a custom package name must be provided.' } }, { status: 400 });
         }
-        if (meal.itemIds.some((itemId: any) => !/^\d+$/.test(String(itemId)))) {
-          return NextResponse.json(
-            { success: false, error: { message: 'Invalid food item ID format.' } },
-            { status: 400 }
-          );
+        if (meal.itemIds && Array.isArray(meal.itemIds) && meal.itemIds.length > 0) {
+          if (meal.itemIds.some((itemId: any) => !/^\d+$/.test(String(itemId)))) {
+            return NextResponse.json({ success: false, error: { message: 'Invalid food item ID format.' } }, { status: 400 });
+          }
         }
 
         calculatedGrandTotal += Number(meal.rate) * Number(meal.pax);
@@ -287,7 +283,7 @@ export async function PUT(
           }).returning();
           const mealPeriodId = insertedMeals[0].id;
 
-          if (meal.itemIds.length > 0) {
+          if (meal.itemIds && Array.isArray(meal.itemIds) && meal.itemIds.length > 0) {
             await tx.insert(schema.mealPeriodItems).values(
               meal.itemIds.map((itemId: any) => ({
                 mealPeriodId: mealPeriodId,
