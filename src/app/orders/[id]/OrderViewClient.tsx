@@ -6,7 +6,7 @@ import {
   FileText, Calendar, Clock, DollarSign, Edit, Save, X, Printer,
   Plus, Trash2, ArrowLeft, CheckCircle2, AlertCircle, RefreshCw, ChevronRight
 } from 'lucide-react';
-import { Order, Venue, ServiceType, Client, MenuCatalog } from '@/types';
+import { Order, Venue, ServiceType, Client, MenuCatalog, MealPeriodEntry, OrderDay } from '@/types';
 import { Toast } from '@/components/Toast';
 
 interface OrderViewClientProps {
@@ -183,7 +183,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
     let total = 0;
     orderDays.forEach((day) => {
       day.mealPeriods.forEach((meal) => {
-        total += Number(meal.rate) * meal.pax;
+        total += Number(meal.rate) * Number(meal.pax);
       });
     });
     return total;
@@ -561,7 +561,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
                         </thead>
                         <tbody className="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
                           {day.mealPeriods.map((meal, mIdx) => {
-                            const subtotal = Number(meal.rate) * meal.pax;
+                            const subtotal = Number(meal.rate) * Number(meal.pax);
                             const selectedMenu = menus.find(m => m.id === meal.menuId);
                             const itemName = meal.customName || selectedMenu?.title || 'Custom Package';
                             return (
@@ -842,12 +842,12 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
 
               <div className="space-y-6">
                 {order.orderDays.map((day: any, idx: number) => {
-                  const groupedMeals = day.mealPeriods.reduce((acc: any, meal: any) => {
+                  const groupedMeals = day.mealPeriods.reduce((acc: Record<string, MealPeriodEntry[]>, meal: MealPeriodEntry) => {
                     const period = meal.mealPeriod || 'Other';
                     if (!acc[period]) acc[period] = [];
                     acc[period].push(meal);
                     return acc;
-                  }, {});
+                  }, {} as Record<string, MealPeriodEntry[]>);
                   
                   return (
                     <div key={day.id} className="bg-slate-50 dark:bg-slate-950/30 rounded-xl p-4 border border-slate-200 dark:border-slate-850 space-y-4">
@@ -867,7 +867,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
                                   </td>
                                 </tr>
                                 {meals.map((meal: any) => {
-                                  const subtotal = Number(meal.rate) * meal.pax;
+                                  const subtotal = Number(meal.rate) * Number(meal.pax);
                                   const itemName = meal.customName || meal.menu?.title || 'Dynamic Package';
                                   const foodItems = meal.mealPeriodItems?.map((i: any) => i.item.itemName).join(', ') || 'N/A';
                                   return (
