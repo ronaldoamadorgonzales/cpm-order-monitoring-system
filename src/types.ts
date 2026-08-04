@@ -24,7 +24,7 @@ export interface MenuCatalog {
   description: string;
   baseRate: string;
   isActive: boolean;
-  menuItems: Array<{ item: { itemName: string; category: string } }>;
+  menuItems: Array<{ itemId: string; item: { id?: string; itemName: string; category: string } }>;
 }
 
 export interface ServiceType {

@@ -28,9 +28,19 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
   const [wizardDays, setWizardDays] = useState<Array<{
     tempId: string;
     eventDate: string;
-    mealPeriods: Array<{ tempId: string; menuId: string; pax: number }>;
+    mealPeriods: Array<{ tempId: string; menuId: string; mealPeriod: string; pax: number; rate: number | string; customName: string; itemIds: string[] }>;
   }>>([]);
   const [wizardError, setWizardError] = useState('');
+  const [foodItems, setFoodItems] = useState<Array<{ id: string, itemName: string, category: string }>>([]);
+
+  useEffect(() => {
+    fetch('/api/catalogs/items')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setFoodItems(data.data);
+      })
+      .catch(err => console.error(err));
+  }, []);
   const [actionLoading, setActionLoading] = useState(false);
 
 
@@ -59,8 +69,12 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
         eventDate: day.eventDate.split('T')[0],
         mealPeriods: day.mealPeriods.map((meal: any) => ({
           tempId: Math.random().toString(),
-          menuId: meal.menuId,
+          menuId: meal.menuId || '',
+          mealPeriod: meal.mealPeriod || 'Breakfast',
           pax: meal.pax,
+          rate: Number(meal.rate || 0),
+          customName: meal.customName || '',
+          itemIds: meal.mealPeriodItems ? meal.mealPeriodItems.map((mpi: any) => mpi.itemId) : []
         })),
       }));
       setWizardDays(days);
@@ -77,7 +91,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
         {
           tempId: Math.random().toString(),
           eventDate: new Date().toISOString().split('T')[0],
-          mealPeriods: [{ tempId: Math.random().toString(), menuId: '', pax: 10 }]
+          mealPeriods: [{ tempId: Math.random().toString(), menuId: '', mealPeriod: 'Breakfast', pax: 10, rate: 0, customName: '', itemIds: [] }]
         }
       ]);
     }
@@ -89,7 +103,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
       {
         tempId: Math.random().toString(),
         eventDate: new Date().toISOString().split('T')[0],
-        mealPeriods: [{ tempId: Math.random().toString(), menuId: '', pax: 10 }]
+        mealPeriods: [{ tempId: Math.random().toString(), menuId: '', mealPeriod: 'Breakfast', pax: 10, rate: 0, customName: '', itemIds: [] }]
       }
     ]);
   };
@@ -104,7 +118,11 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
     updated[dayIndex].mealPeriods.push({
       tempId: Math.random().toString(),
       menuId: '',
-      pax: 10
+      mealPeriod: 'Breakfast',
+      pax: 10,
+      rate: 0,
+      customName: '',
+      itemIds: []
     });
     setWizardDays(updated);
   };
@@ -132,14 +150,10 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
   };
 
   const calculateWizardTotal = () => {
-    if (!catalogs) return 0;
     let total = 0;
     wizardDays.forEach((day) => {
       day.mealPeriods.forEach((meal) => {
-        const menu = catalogs.menus.find((m) => m.id === meal.menuId);
-        if (menu) {
-          total += Number(menu.baseRate) * meal.pax;
-        }
+        total += Number(meal.rate) * Number(meal.pax);
       });
     });
     return total;
@@ -186,8 +200,12 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
       orderDays: wizardDays.map((d) => ({
         eventDate: d.eventDate,
         mealPeriods: d.mealPeriods.map((m) => ({
-          menuId: m.menuId,
+          menuId: m.menuId || null,
+          mealPeriod: m.mealPeriod,
           pax: m.pax,
+          rate: m.rate,
+          customName: m.customName,
+          itemIds: m.itemIds,
         })),
       })),
     };
@@ -425,53 +443,161 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
                     </div>
 
                     {/* Meal periods sub-table */}
-                    <div className="space-y-3 pl-4 border-l-2 border-slate-200 dark:border-slate-800">
+                    <div className="space-y-6 pl-4 border-l-2 border-slate-200 dark:border-slate-800">
                       {day.mealPeriods.map((meal, mIdx) => {
-                        const selectedMenu = catalogs?.menus.find((m) => m.id === meal.menuId);
-                        const subtotal = selectedMenu ? Number(selectedMenu.baseRate) * meal.pax : 0;
+                        const subtotal = Number(meal.rate) * meal.pax;
+                        const isDynamic = meal.menuId === '';
+                        const selectedMenu = catalogs?.menus.find(m => m.id === meal.menuId);
+                        
+                        let isCustom = isDynamic;
+                        if (!isDynamic && selectedMenu) {
+                          const defaultItemIds = selectedMenu.menuItems.map(mi => mi.itemId).sort().join(',');
+                          const currentItemIds = [...meal.itemIds].sort().join(',');
+                          if (defaultItemIds !== currentItemIds) {
+                            isCustom = true;
+                          }
+                        }
 
                         return (
-                          <div key={meal.tempId} className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-                            <div className="flex-1 w-full">
-                              <select
-                                value={meal.menuId}
-                                onChange={(e) => updateMealPeriod(dIdx, mIdx, { menuId: e.target.value })}
-                                required
-                                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none"
-                              >
-                                <option value="">-- Select Menu Catalog --</option>
-                                {catalogs?.menus.map((m) => (
-                                  <option key={m.id} value={m.id}>{m.title} (PHP {Number(m.baseRate).toFixed(2)}/pax)</option>
-                                ))}
-                              </select>
+                          <div key={meal.tempId} className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                            <div className="flex flex-col md:flex-row items-start md:items-center space-y-3 md:space-y-0 md:space-x-3">
+                              {/* Meal Period Dropdown */}
+                              <div className="w-full md:w-36">
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Period</label>
+                                <select
+                                  value={meal.mealPeriod}
+                                  onChange={(e) => updateMealPeriod(dIdx, mIdx, { mealPeriod: e.target.value })}
+                                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none"
+                                >
+                                  <option value="Breakfast">Breakfast</option>
+                                  <option value="AM Snack">AM Snack</option>
+                                  <option value="Lunch">Lunch</option>
+                                  <option value="PM Snack">PM Snack</option>
+                                  <option value="Dinner">Dinner</option>
+                                </select>
+                              </div>
+
+                              {/* Menu Package Dropdown */}
+                              <div className="flex-1 w-full">
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Package / Menu</label>
+                                <select
+                                  value={meal.menuId}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '') {
+                                      updateMealPeriod(dIdx, mIdx, { menuId: '', rate: 0, itemIds: [] });
+                                    } else {
+                                      const menu = catalogs?.menus.find(m => m.id === val);
+                                      if (menu) {
+                                        const defaultIds = menu.menuItems.map(mi => mi.itemId);
+                                        updateMealPeriod(dIdx, mIdx, { menuId: val, rate: Number(menu.baseRate), itemIds: defaultIds });
+                                      }
+                                    }
+                                  }}
+                                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none"
+                                >
+                                  <option value="">-- Build Dynamic Group --</option>
+                                  {catalogs?.menus.map((m) => (
+                                    <option key={m.id} value={m.id}>{m.title}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* Price per Pax */}
+                              <div className="w-full md:w-28">
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Rate / Pax</label>
+                                <input
+                                  type="number"
+                                  value={meal.rate}
+                                  onChange={(e) => updateMealPeriod(dIdx, mIdx, { rate: parseFloat(e.target.value) || 0 })}
+                                  min={0}
+                                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none"
+                                />
+                              </div>
+
+                              {/* Pax Count */}
+                              <div className="w-full md:w-24">
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Pax</label>
+                                <input
+                                  type="number"
+                                  value={meal.pax}
+                                  onChange={(e) => updateMealPeriod(dIdx, mIdx, { pax: parseInt(e.target.value) || 0 })}
+                                  required
+                                  min={1}
+                                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none"
+                                />
+                              </div>
+
+                              <div className="w-full md:w-32 text-right">
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Subtotal</label>
+                                <div className="text-sm font-bold text-slate-900 dark:text-white py-2">
+                                  ₱{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </div>
+                              </div>
+
+                              {day.mealPeriods.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeMealPeriod(dIdx, mIdx)}
+                                  className="text-red-500 hover:text-red-700 p-2 mt-4 self-center"
+                                  title="Remove Period"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
 
-                            <div className="w-full sm:w-32 flex items-center space-x-2">
-                              <input
-                                type="number"
-                                value={meal.pax}
-                                onChange={(e) => updateMealPeriod(dIdx, mIdx, { pax: parseInt(e.target.value) || 0 })}
-                                required
-                                min={1}
-                                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none"
-                                placeholder="Pax count"
-                              />
-                              <span className="text-xs text-slate-500">Pax</span>
-                            </div>
-
-                            <div className="w-full sm:w-36 text-right text-sm font-semibold">
-                              ₱{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </div>
-
-                            {day.mealPeriods.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => removeMealPeriod(dIdx, mIdx)}
-                                className="text-red-500 hover:text-red-700 p-1"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
+                            {/* Custom Name Field */}
+                            {isCustom && (
+                              <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Custom Package Name (Optional)</label>
+                                <input
+                                  type="text"
+                                  value={meal.customName}
+                                  onChange={(e) => updateMealPeriod(dIdx, mIdx, { customName: e.target.value })}
+                                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none"
+                                  placeholder="e.g. Special VIP Lunch"
+                                />
+                              </div>
                             )}
+
+                            {/* Food Item Checklist Drawer */}
+                            <div className="pt-2">
+                              <details className="group border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-950/50">
+                                <summary className="px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 cursor-pointer list-none flex justify-between items-center outline-none">
+                                  <span>Selected Food Items ({meal.itemIds.length})</span>
+                                  <ChevronRight className="w-4 h-4 group-open:rotate-90 transition-transform" />
+                                </summary>
+                                <div className="p-4 border-t border-slate-200 dark:border-slate-700 max-h-60 overflow-y-auto">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                    {foodItems.map(fi => (
+                                      <label key={fi.id} className="flex items-center space-x-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={meal.itemIds.includes(fi.id)}
+                                          onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            let newIds = [...meal.itemIds];
+                                            if (checked) {
+                                              newIds.push(fi.id);
+                                            } else {
+                                              newIds = newIds.filter(id => id !== fi.id);
+                                            }
+                                            updateMealPeriod(dIdx, mIdx, { itemIds: newIds });
+                                          }}
+                                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span className="truncate" title={fi.itemName}>{fi.itemName}</span>
+                                      </label>
+                                    ))}
+                                    {foodItems.length === 0 && (
+                                      <div className="text-xs text-slate-500 italic col-span-full">No food items available.</div>
+                                    )}
+                                  </div>
+                                </div>
+                              </details>
+                            </div>
+
                           </div>
                         );
                       })}
