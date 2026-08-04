@@ -44,16 +44,32 @@ export interface OrderStatus {
   statusName: string;
 }
 
+export interface MealPeriodItem {
+  id: string;
+  mealPeriodId: string;
+  itemId: string;
+  item: {
+    id: string;
+    itemName: string;
+    category: string;
+  };
+}
+
+export interface MealPeriodEntry {
+  id: string;
+  menuId: string | null;
+  pax: number;
+  rate: string;
+  mealPeriod: string; // 'Breakfast' | 'AM Snack' | 'Lunch' | 'PM Snack' | 'Dinner'
+  customName?: string | null;
+  menu?: MenuCatalog | null;
+  mealPeriodItems?: MealPeriodItem[];
+}
+
 export interface OrderDay {
   id: string;
   eventDate: string;
-  mealPeriods: Array<{
-    id: string;
-    menuId: string;
-    pax: number;
-    rate: string;
-    menu: MenuCatalog;
-  }>;
+  mealPeriods: MealPeriodEntry[];
 }
 
 export interface OrderHistoryLog {
