@@ -140,14 +140,28 @@ export const orderDaysRelations = relations(orderDays, ({ one, many }) => ({
 export const mealPeriods = pgTable("bridge_cpm_meal_periods", {
   id: bigserial("id", { mode: "bigint" }).primaryKey(),
   orderDayId: bigint("order_day_id", { mode: "bigint" }).references(() => orderDays.id, { onDelete: "cascade" }).notNull(),
-  menuId: bigint("menu_id", { mode: "bigint" }).references(() => menus.id, { onDelete: "restrict" }).notNull(),
+  menuId: bigint("menu_id", { mode: "bigint" }).references(() => menus.id, { onDelete: "restrict" }),
   pax: integer("pax").notNull(),
   rate: numeric("rate", { precision: 12, scale: 2 }).notNull(),
+  mealPeriod: varchar("meal_period").notNull(),
+  customName: varchar("custom_name"),
 });
 
-export const mealPeriodsRelations = relations(mealPeriods, ({ one }) => ({
+export const mealPeriodItems = pgTable("bridge_cpm_meal_period_items", {
+  id: bigserial("id", { mode: "bigint" }).primaryKey(),
+  mealPeriodId: bigint("meal_period_id", { mode: "bigint" }).references(() => mealPeriods.id, { onDelete: "cascade" }).notNull(),
+  itemId: bigint("item_id", { mode: "bigint" }).references(() => items.id, { onDelete: "restrict" }).notNull(),
+});
+
+export const mealPeriodsRelations = relations(mealPeriods, ({ one, many }) => ({
   orderDay: one(orderDays, { fields: [mealPeriods.orderDayId], references: [orderDays.id] }),
   menu: one(menus, { fields: [mealPeriods.menuId], references: [menus.id] }),
+  mealPeriodItems: many(mealPeriodItems),
+}));
+
+export const mealPeriodItemsRelations = relations(mealPeriodItems, ({ one }) => ({
+  mealPeriod: one(mealPeriods, { fields: [mealPeriodItems.mealPeriodId], references: [mealPeriods.id] }),
+  item: one(items, { fields: [mealPeriodItems.itemId], references: [items.id] }),
 }));
 
 export const orderHistory = pgTable("f_cpm_order_history", {

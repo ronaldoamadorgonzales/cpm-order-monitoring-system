@@ -264,6 +264,48 @@ async function main() {
   }
   console.log('Seeded users (admin and user).');
 
+  // 9. Seed Sample Order (with orderDays, mealPeriods, mealPeriodItems)
+  const existingOrders = await db.select().from(schema.orders).limit(1);
+  if (existingOrders.length === 0) {
+    const clientsList = await db.select().from(schema.clients).limit(1);
+    const menusList = await db.select().from(schema.menus).limit(1);
+    const itemsList = await db.select().from(schema.items).limit(1);
+    if (clientsList.length > 0 && menusList.length > 0) {
+      const [order] = await db.insert(schema.orders).values({
+        clientId: clientsList[0].id,
+        venueId: venuesList[0].id,
+        serviceTypeId: serviceTypesList[0].id,
+        statusId: statusesList[0].id,
+        grandTotal: '1500.00',
+        createdByUserId: testUser?.id || adminUser?.id || BigInt(1),
+      }).returning();
+
+      const [orderDay] = await db.insert(schema.orderDays).values({
+        orderId: order.id,
+        eventDate: '2026-09-01',
+      }).returning();
+
+      const [mealPeriod] = await db.insert(schema.mealPeriods).values({
+        orderDayId: orderDay.id,
+        menuId: menusList[0].id,
+        pax: 10,
+        rate: '150.00',
+        mealPeriod: 'Breakfast',
+        customName: 'Morning Kickoff',
+      }).returning();
+
+      if (itemsList.length > 0) {
+        await db.insert(schema.mealPeriodItems).values({
+          mealPeriodId: mealPeriod.id,
+          itemId: itemsList[0].id,
+        });
+      }
+      console.log('Seeded sample order with meal period and meal period items.');
+    }
+  } else {
+    console.log('Orders already exist, skipping sample order seed.');
+  }
+
   console.log('Seeding complete!');
 }
 
