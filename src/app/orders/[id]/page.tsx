@@ -46,6 +46,11 @@ export default async function OrderViewPage({ params }: PageProps) {
                   },
                 },
               },
+              mealPeriodItems: {
+                with: {
+                  item: true,
+                },
+              },
             },
           },
         },
