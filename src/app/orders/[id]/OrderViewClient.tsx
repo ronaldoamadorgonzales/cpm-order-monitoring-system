@@ -55,7 +55,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
   const [orderDays, setOrderDays] = useState<Array<{
     tempId: string;
     eventDate: string;
-    mealPeriods: Array<{ tempId: string; menuId: string; pax: number }>;
+    mealPeriods: Array<{ tempId: string; menuId: string | null; pax: number }>;
   }>>(() => {
     return order.orderDays.map(day => ({
       tempId: Math.random().toString(),
@@ -467,7 +467,7 @@ export const OrderViewClient: React.FC<OrderViewClientProps> = ({
                         <div key={meal.tempId} className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
                           <div className="flex-1 w-full">
                             <select
-                              value={meal.menuId}
+                              value={meal.menuId || ''}
                               onChange={(e) => handleUpdateMeal(dIdx, mIdx, { menuId: e.target.value })}
                               required
                               className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"

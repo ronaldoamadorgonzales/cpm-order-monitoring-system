@@ -37,7 +37,29 @@ export async function POST(
         client: true,
         venue: true,
         serviceType: true,
-        orderDays: true,
+        orderDays: {
+          with: {
+            mealPeriods: {
+              with: {
+                menu: {
+                  with: {
+                    menuItems: {
+                      with: {
+                        item: true,
+                      },
+                    },
+                  },
+                },
+                mealPeriodItems: {
+                  with: {
+                    item: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: (od, { asc }) => [asc(od.eventDate)],
+        },
       },
     });
 

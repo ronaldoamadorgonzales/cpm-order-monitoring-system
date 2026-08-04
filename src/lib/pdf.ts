@@ -111,19 +111,21 @@ export function generateInvoicePDF(order: any): string {
       // Loop through meal periods for this specific day
       const meals = day.mealPeriods || [];
       meals.forEach((meal: any) => {
-        const menuTitle = meal.menu?.title || 'Unknown Menu';
-        const baseRate = Number(meal.rate || meal.menu?.baseRate || 0);
+        const menuTitle = `${meal.mealPeriod}: ${meal.customName || meal.menu?.title || 'Custom Combo'}`;
+        const baseRate = Number(meal.rate || 0);
         const subtotal = baseRate * meal.pax;
         daySubtotal += subtotal;
 
         dayLines.push(`0 -20 Td`);
-        dayLines.push(`\\(Menu: ${escapePDFText(menuTitle)} \\(PHP ${baseRate.toFixed(2)}/pax\\)\\) Tj`);
+        dayLines.push(`\\(${escapePDFText(menuTitle)} \\(PHP ${baseRate.toFixed(2)}/pax\\)\\) Tj`);
         dayLines.push(`0 -15 Td`);
         dayLines.push(`\\(Allocated Pax: ${meal.pax}    |    Subtotal: PHP ${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}\\) Tj`);
         
-        const itemNames = meal.menu?.menuItems?.map((i: any) => i.item?.itemName).join(', ') || 'N/A';
+        const itemNames = meal.mealPeriodItems && meal.mealPeriodItems.length > 0
+          ? meal.mealPeriodItems.map((i: any) => i.item?.itemName).filter(Boolean).join(', ')
+          : (meal.menu?.menuItems?.map((i: any) => i.item?.itemName).filter(Boolean).join(', ') || 'N/A');
         dayLines.push(`0 -14 Td`);
-        dayLines.push(`\\(Food Items: ${escapePDFText(itemNames)}\\) Tj`);
+        dayLines.push(`\\(Food Items: ${escapePDFText(itemNames || 'N/A')}\\) Tj`);
         currentYOffset -= 49;
       });
 
