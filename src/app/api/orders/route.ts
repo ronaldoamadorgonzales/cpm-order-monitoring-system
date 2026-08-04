@@ -139,6 +139,11 @@ export async function GET(req: NextRequest) {
                     }
                   }
                 },
+                mealPeriodItems: {
+                  with: {
+                    item: true
+                  }
+                }
               },
             },
           },
@@ -185,7 +190,7 @@ export async function POST(req: NextRequest) {
       ingressTime, // HH:MM string or null
       egressTime, // HH:MM string or null
       specialInstructions,
-      orderDays, // Array of { eventDate: 'YYYY-MM-DD', mealPeriods: [ { menuId: 1, pax: 50 } ] }
+      orderDays, // Array of { eventDate: 'YYYY-MM-DD', mealPeriods: [ { menuId: 1, pax: 50, rate: '250', mealPeriod: 'Lunch', customName: 'Custom', itemIds: [1, 2] } ] }
     } = body;
 
     // 1. Validations
@@ -260,12 +265,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Compute costs and verify menus to prevent price tampering
+    // 3. Compute costs and validate meal periods
     let calculatedGrandTotal = 0;
-    const menuCache: Record<string, any> = {};
 
     for (const day of orderDays) {
-      if (!day.eventDate || !day.mealPeriods || !Array.isArray(day.mealPeriods)) {
+      if (!day.eventDate || !day.mealPeriods || !Array.isArray(day.mealPeriods) || day.mealPeriods.length === 0) {
         return NextResponse.json(
           { success: false, error: { message: 'Each event day must contain a valid date and meal periods.' } },
           { status: 400 }
@@ -273,28 +277,32 @@ export async function POST(req: NextRequest) {
       }
 
       for (const meal of day.mealPeriods) {
-        if (!meal.menuId || !meal.pax || meal.pax <= 0) {
+        if (!meal.mealPeriod || !['Breakfast', 'AM Snack', 'Lunch', 'PM Snack', 'Dinner'].includes(meal.mealPeriod)) {
           return NextResponse.json(
-            { success: false, error: { message: 'Each meal period must have a valid menuId and pax > 0.' } },
+            { success: false, error: { message: 'Invalid meal period value.' } },
+            { status: 400 }
+          );
+        }
+        if (meal.pax === undefined || isNaN(Number(meal.pax)) || Number(meal.pax) <= 0) {
+          return NextResponse.json(
+            { success: false, error: { message: 'Pax must be greater than 0.' } },
+            { status: 400 }
+          );
+        }
+        if (meal.rate === undefined || isNaN(Number(meal.rate)) || Number(meal.rate) < 0) {
+          return NextResponse.json(
+            { success: false, error: { message: 'Valid rate per pax is required.' } },
+            { status: 400 }
+          );
+        }
+        if (!meal.itemIds || !Array.isArray(meal.itemIds) || meal.itemIds.length === 0) {
+          return NextResponse.json(
+            { success: false, error: { message: 'At least one food item must be selected.' } },
             { status: 400 }
           );
         }
 
-        const menuIdStr = meal.menuId.toString();
-        let menu = menuCache[menuIdStr];
-        if (!menu) {
-          const menuList = await db.select().from(schema.menus).where(eq(schema.menus.id, BigInt(meal.menuId))).limit(1);
-          menu = menuList[0];
-          if (!menu || !menu.isActive) {
-            return NextResponse.json(
-              { success: false, error: { message: `Menu with id ${meal.menuId} is invalid or inactive.` } },
-              { status: 400 }
-            );
-          }
-          menuCache[menuIdStr] = menu;
-        }
-
-        calculatedGrandTotal += Number(menu.baseRate) * Number(meal.pax);
+        calculatedGrandTotal += Number(meal.rate) * Number(meal.pax);
       }
     }
 
@@ -315,7 +323,7 @@ export async function POST(req: NextRequest) {
       }).returning();
       const order = insertedOrders[0];
 
-      // Create order days & meal periods
+      // Create order days, meal periods & meal period items
       for (const day of orderDays) {
         const insertedDays = await tx.insert(schema.orderDays).values({
           orderId: order.id,
@@ -324,13 +332,22 @@ export async function POST(req: NextRequest) {
         const orderDay = insertedDays[0];
 
         for (const meal of day.mealPeriods) {
-          const menu = menuCache[meal.menuId.toString()];
-          await tx.insert(schema.mealPeriods).values({
+          const insertedMeals = await tx.insert(schema.mealPeriods).values({
             orderDayId: orderDay.id,
-            menuId: BigInt(meal.menuId),
+            menuId: meal.menuId ? BigInt(meal.menuId) : null,
             pax: Number(meal.pax),
-            rate: menu.baseRate,
-          });
+            rate: String(meal.rate),
+            mealPeriod: meal.mealPeriod,
+            customName: meal.customName || null,
+          }).returning();
+          const mealPeriodId = insertedMeals[0].id;
+
+          for (const itemId of meal.itemIds) {
+            await tx.insert(schema.mealPeriodItems).values({
+              mealPeriodId: mealPeriodId,
+              itemId: BigInt(itemId),
+            });
+          }
         }
       }
 

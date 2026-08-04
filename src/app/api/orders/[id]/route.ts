@@ -44,6 +44,11 @@ export async function GET(
             mealPeriods: {
               with: {
                 menu: true,
+                mealPeriodItems: {
+                  with: {
+                    item: true,
+                  },
+                },
               },
             },
           },
@@ -148,6 +153,14 @@ export async function PUT(
       orderDays,
     } = body;
 
+    // Validate orderDays
+    if (!orderDays || !Array.isArray(orderDays) || orderDays.length === 0) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Required fields missing: event dates and meal periods.' } },
+        { status: 400 }
+      );
+    }
+
     // Validate times
     if (!validateTimeFormat(ingressTime) || !validateTimeFormat(egressTime)) {
       return NextResponse.json(
@@ -185,32 +198,50 @@ export async function PUT(
       dbDeliveryAddress = customDeliveryAddress;
     }
 
-    // Recalculate Grand Total from scratch
+    // Recalculate Grand Total & validate meal periods
     let calculatedGrandTotal = 0;
-    const menuCache: Record<string, any> = {};
 
     for (const day of orderDays) {
+      if (!day.eventDate || !day.mealPeriods || !Array.isArray(day.mealPeriods) || day.mealPeriods.length === 0) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Each event day must contain a valid date and at least one meal period.' } },
+          { status: 400 }
+        );
+      }
+
       for (const meal of day.mealPeriods) {
-        const menuIdStr = meal.menuId.toString();
-        let menu = menuCache[menuIdStr];
-        if (!menu) {
-          const menuList = await db.select().from(schema.menus).where(eq(schema.menus.id, BigInt(meal.menuId))).limit(1);
-          menu = menuList[0];
-          if (!menu || !menu.isActive) {
-            return NextResponse.json(
-              { success: false, error: { message: `Menu with id ${meal.menuId} is invalid or inactive.` } },
-              { status: 400 }
-            );
-          }
-          menuCache[menuIdStr] = menu;
+        if (!meal.mealPeriod || !['Breakfast', 'AM Snack', 'Lunch', 'PM Snack', 'Dinner'].includes(meal.mealPeriod)) {
+          return NextResponse.json(
+            { success: false, error: { message: 'Invalid meal period value.' } },
+            { status: 400 }
+          );
         }
-        calculatedGrandTotal += Number(menu.baseRate) * Number(meal.pax);
+        if (meal.pax === undefined || isNaN(Number(meal.pax)) || Number(meal.pax) <= 0) {
+          return NextResponse.json(
+            { success: false, error: { message: 'Pax must be greater than 0.' } },
+            { status: 400 }
+          );
+        }
+        if (meal.rate === undefined || isNaN(Number(meal.rate)) || Number(meal.rate) < 0) {
+          return NextResponse.json(
+            { success: false, error: { message: 'Valid rate per pax is required.' } },
+            { status: 400 }
+          );
+        }
+        if (!meal.itemIds || !Array.isArray(meal.itemIds) || meal.itemIds.length === 0) {
+          return NextResponse.json(
+            { success: false, error: { message: 'At least one food item must be selected.' } },
+            { status: 400 }
+          );
+        }
+
+        calculatedGrandTotal += Number(meal.rate) * Number(meal.pax);
       }
     }
 
     // Update everything in a single transaction
     const updatedOrder = await db.transaction(async (tx) => {
-      // 1. Delete old order days and meal periods (cascading deletes will handle child bridge_cpm_meal_periods)
+      // 1. Delete old order days (cascading deletes will handle child meal_periods & meal_period_items)
       await tx.delete(schema.orderDays).where(eq(schema.orderDays.orderId, orderId));
 
       // 2. Update order header
@@ -231,7 +262,7 @@ export async function PUT(
       
       const order = updatedHeaderList[0];
 
-      // 3. Recreate order days & meal periods
+      // 3. Recreate order days, meal periods & meal period items
       for (const day of orderDays) {
         const insertedDays = await tx.insert(schema.orderDays).values({
           orderId: order.id,
@@ -240,13 +271,22 @@ export async function PUT(
         const orderDay = insertedDays[0];
 
         for (const meal of day.mealPeriods) {
-          const menu = menuCache[meal.menuId.toString()];
-          await tx.insert(schema.mealPeriods).values({
+          const insertedMeals = await tx.insert(schema.mealPeriods).values({
             orderDayId: orderDay.id,
-            menuId: BigInt(meal.menuId),
+            menuId: meal.menuId ? BigInt(meal.menuId) : null,
             pax: Number(meal.pax),
-            rate: menu.baseRate,
-          });
+            rate: String(meal.rate),
+            mealPeriod: meal.mealPeriod,
+            customName: meal.customName || null,
+          }).returning();
+          const mealPeriodId = insertedMeals[0].id;
+
+          for (const itemId of meal.itemIds) {
+            await tx.insert(schema.mealPeriodItems).values({
+              mealPeriodId: mealPeriodId,
+              itemId: BigInt(itemId),
+            });
+          }
         }
       }
 
