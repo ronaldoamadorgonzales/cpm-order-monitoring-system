@@ -301,6 +301,12 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
+        if (meal.itemIds.some((itemId: any) => !/^\d+$/.test(String(itemId)))) {
+          return NextResponse.json(
+            { success: false, error: { message: 'Invalid food item ID format.' } },
+            { status: 400 }
+          );
+        }
 
         calculatedGrandTotal += Number(meal.rate) * Number(meal.pax);
       }
@@ -342,11 +348,13 @@ export async function POST(req: NextRequest) {
           }).returning();
           const mealPeriodId = insertedMeals[0].id;
 
-          for (const itemId of meal.itemIds) {
-            await tx.insert(schema.mealPeriodItems).values({
-              mealPeriodId: mealPeriodId,
-              itemId: BigInt(itemId),
-            });
+          if (meal.itemIds.length > 0) {
+            await tx.insert(schema.mealPeriodItems).values(
+              meal.itemIds.map((itemId: any) => ({
+                mealPeriodId: mealPeriodId,
+                itemId: BigInt(itemId),
+              }))
+            );
           }
         }
       }
